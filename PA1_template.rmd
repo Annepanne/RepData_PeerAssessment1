@@ -1,0 +1,116 @@
+---
+title: "Reproducible research - assignment 1"
+author: "Anne Abelsæth"
+date: "October 13, 2018"
+output: html_document
+---
+###Load and preprosess data
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1) Reading the data file and examin it
+```{r}
+activities <- read.csv2("activity.csv", header = T, sep = ",")
+str(activities)
+```
+2) Transforming the date variable to date format
+```{r}
+activities$date <- as.Date(activities$date)
+```
+
+
+
+###Mean total number of steps taken per day
+Using the dplyr package
+```{r}
+library(dplyr)
+theSum <- activities %>% group_by (date) %>% summarize(Sum = sum(steps, na.rm = F))
+```
+1) total number of steps per day (only showing a few of the days):
+```{r}
+theSum
+```
+
+
+2) Histogram of total number of steps per day
+```{r}
+hist(theSum$Sum, xlab = "Total number of steps per day", main = "Histogram of number of steps per day")
+```
+
+
+3) mean and median of total number of steps per day
+```{r}
+summary(theSum$Sum)
+```
+
+Mean of total number of steps per day is 10766 while median is 10765
+
+
+###Average daily activity pattern##
+First I need to deal with the missing values, and then make average for each interval:
+```{r}
+activities[is.na(activities)] <- 0
+
+steps_per_day <- activities %>% group_by(interval) %>%summarise(Mean = mean(steps))
+plot(Mean ~ interval, data = steps_per_day, type = "l", xlab = "Average number of steps for given time", ylab = "Steps")
+```
+The 5-minute interval, on average across all the days in the dataset that contains the maximum number of steps, is interval 835, as can be seen below. At that time, number of steps on average is 179:
+```{r}
+steps_per_day[which.max(steps_per_day$Mean),]
+```
+
+###Imputing missing values
+To calculate the total number of missing values in the dataset, I need the original dataset back. Reading again from file and then use sapply to calculate number of NAs
+
+```{r}
+activities <- read.csv2("activity.csv", header = T, sep = ",")
+sapply(activities, function(x) sum(is.na(x)))
+```
+
+1) hence the number of NA is 2304, and they're only to be found in the steps column.
+
+
+2) Dealing with NAs
+Giving NAs  the value mean of the same time intervals
+```{r}
+tmp <-activities %>%group_by(interval) %>% summarise(Mean = mean(steps, na.rm = T))
+activities_noNA <- activities
+activities_noNA[is.na(activities_noNA)] <- tmp$Mean
+```
+
+And double checking that I don't have NAs anymore:
+```{r}
+sapply(activities_noNA, function(x) sum(is.na(x)))
+```
+
+4) Histogram of total number of steps per day
+```{r}
+theSum <- activities_noNA %>% group_by (date) %>% summarize(Sum = sum(steps, na.rm = F))
+hist(theSum$Sum, xlab = "Total number of steps per day", main = "Histogram of number of steps per day")
+```
+I don't really see a big difference of the historgrams, hence there is not much impact on imputing the data in this case
+
+###Difference in activity patterns between weekdays and weekends
+1) create factor variable "weekday" and "weekend"
+
+First make the date variable to e of type date, then making the factor
+```{r}
+activities_noNA$date <- as.Date(activities_noNA$date)
+activities_noNA$day <- ifelse(weekdays(activities_noNA$date) %in% c("Saturday", "Sunday"), "weekend", "weekday")
+activities_noNA$day <- as.factor(activities_noNA$day)
+```
+
+Splitting the dataset into to separate sets based on the day factor
+```{r}
+day <- split(activities_noNA, activities_noNA$day)
+steps_weekday <- day[[1]] %>% group_by(interval) %>% summarise(Mean = mean(steps))
+steps_weekend <- day[[2]] %>% group_by(interval) %>% summarise(Mean = mean(steps))
+```
+Then plotting the two plots in the same pane
+```{r}
+par(mfrow = c(2,1))
+plot(Mean ~ interval, data = steps_weekday, type = "l", xlab = "Avg number of steps for weekdays", ylab = "Steps")
+plot(Mean ~ interval, data = steps_weekend, type = "l", xlab = "Avg number of steps for weekends", ylab = "Steps")
+```
